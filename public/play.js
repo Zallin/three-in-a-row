@@ -1,26 +1,42 @@
 var playState = {
 	create : function(){
+		
+		this.setIconSize(game.global);
+
+		var iconScale = (game.global.iconSize / game.global.imageSize).toFixed(3),
+			rows = game.global.rows, 
+			cols = game.global.cols;
+
 		this.board = new this.Board(game);
 
-		this.Icon.setSize(game.global.size);
-		this.Icon.setScale(game.global.imageSize);
-
-		var rows = game.global.rows, cols = game.global.cols;
-
 		for(var i = 0, q = rows * cols; i < q; i++){
-			var rnd = Math.floor(Math.random() * 4);
-			if(i > cols - 1){
-				if(this.board.icons[i - cols].name === game.global.iconNames[rnd]) rnd = this.Icon.getRandomName(rnd);
+			var rnd = Math.floor(Math.random() * game.global.iconNames.length),
+				x = Math.floor(game.global.offsetX + game.global.iconSize * (i % cols)),
+				y = Math.floor(game.global.offsetY + game.global.iconSize * Math.floor(i / cols)),
+				col = i % cols,
+				row = Math.floor(i / cols);
+
+			/*if(i > cols - 1){
+				if(this.board.icons[i - cols].key === game.global.iconNames[rnd]) rnd = this.getRandomName(rnd);
 			}
 			if(i % cols > 0){
-				if(this.board.icons[i - 1].name === game.global.iconNames[rnd]) rnd = this.Icon.getRandomName(rnd);
-			}
-			var icon = this.board.icons[i] = new this.Icon(game.global, rnd, i),
-				x = Math.floor(game.global.offsetX + icon.size * (i % cols)),
-			 	y = Math.floor(game.global.offsetY + icon.size * Math.floor(i / cols));
-			icon.image = game.add.sprite(x, y, icon.name);
-			icon.image.scale.x = icon.image.scale.y = icon.scale;
-			game.physics.arcade.enable(icon.image);
+				if(this.board.icons[i - 1].key === game.global.iconNames[rnd]) rnd = this.getRandomName(rnd);
+			}*/
+
+			var icon = game.add.sprite(x, y, game.global.iconNames[rnd]);
+			icon.scale.x = icon.scale.y = iconScale;
+			game.physics.arcade.enable(icon);
+
+			icon.next = {
+				down : row === rows - 1 ? false : i + cols,
+				right : col === cols - 1 ? false : i + 1
+			};
+
+			icon.inH = false;
+			icon.inV = false;
+			icon.processed = false;
+
+			this.board.icons[i] = icon;
 		}
 
 		this.sequence = new this.Sequence(game);
@@ -35,7 +51,7 @@ var playState = {
 			if(game.time.now - this.tapped < game.global.tapDelay) return;
 			var relX = game.input.activePointer.x - game.global.offsetX,
 				relY = game.input.activePointer.y - game.global.offsetY,
-				index = Math.floor(relY / game.global.size) * game.global.cols + Math.floor(relX / game.global.size);
+				index = Math.floor(relY / game.global.iconSize) * game.global.cols + Math.floor(relX / game.global.iconSize);
 
 			this.insertIcon(index);
 			this.tapped = game.time.now;
@@ -44,11 +60,26 @@ var playState = {
 
 	insertIcon : function(index){
 		var txt = this.sequence.elements[0].key;
-		this.board.icons[index].image.loadTexture(txt);
-		this.board.icons[index].name = txt;
+		this.board.icons[index].loadTexture(txt);
 		this.sequence.shift();
 
 		this.board.makeTurn();
+	},
+
+	setIconSize : function(global){
+		var size = Math.floor((global.height - global.offsetY * 2) / global.rows); 
+		while(size * global.cols > global.width - global.offsetX * 2){
+			size--;
+		}
+		global.offsetX = (global.width - size * global.cols) / 2;
+		global.offsetY = (global.height - size * global.rows) / 2;
+		global.iconSize = size;
+	},
+
+	getRandomName : function(prev){
+		var rnd = Math.floor(Math.random() * game.global.iconNames.length);
+		if(rnd === prev) return this.getRandomName(rnd);
+		return rnd;
 	}
 }
 
@@ -65,22 +96,24 @@ playState.Board = function(game){
 playState.Board.prototype = {
 	makeTurn : function () {
 		var self = this;
-		this.killThreesomes();
+
+		this.findThreesomes();
+
 		if(this._combs.length == 0) return;
 
-		this.computeMovements(function () {
-			self.moveIcons(function () {
-				self.changeIndexes(function () {
-					self.addIcons(function () {
-						self.defaultValues();
-						self.makeTurn();
-					});
-				});
+		this.computeMovements();
+
+		this.moveIcons(function () {
+			self.changeIndexes();
+			self.addIcons(function () {
+				self.defaultValues();
+				self.makeTurn();
+				//count scores here??
 			});
 		});
 	},
 
-	killThreesomes : function(){
+	findThreesomes : function(){
 		for(var i = 0, l = this.icons.length; i < l; i++){
 			if (l - i > this.cols * 2){
 				this._checkComb(i, 'inV', 'down');
@@ -95,8 +128,7 @@ playState.Board.prototype = {
 		for(var i = 0; i < this._combs.length; i++){
 			for(var k = 0; k < this._combs[i].length; k++){
 				var index = this._combs[i][k];
-				this.icons[index].image.kill();
-				this.icons[index].name = false;
+				this.icons[index].visible = false;
 			}
 		}
 	},
@@ -105,11 +137,13 @@ playState.Board.prototype = {
 		if (this.icons[i][prop]) return false;
 		var current = [],
 			hasComb = true;
+
 		current.push(i);
+
 		while(hasComb){
 			var prev = this.icons[current[current.length - 1]],
 				icon = this.icons[prev.next[dir]];
-			if (icon.name == prev.name){
+			if (icon.key == prev.key){
 				current.push(prev.next[dir]);
 				if(!icon.next[dir]) hasComb = false;
 			}
@@ -126,7 +160,7 @@ playState.Board.prototype = {
 		}
 	},
 
-	computeMovements : function(fn){
+	computeMovements : function(){
 		for(var i = 0, l = this._combs.length; i < l; i++){
 			for(var k = 0, j = this._combs[i].length; k < j; k++){
 				var index = this._combs[i][k],
@@ -137,53 +171,51 @@ playState.Board.prototype = {
 				}
 			}
 		}
-		fn();
 	},
 
 	_shiftUpper : function(index, k){
 		for(var i = index - this.cols, l = index % this.cols; i >= l; i = i - this.cols){
 			var icon = this.icons[i];
-			if(!icon.name) continue;
+			if(!icon.visible) continue;
 			if(i in this._toMove){
-				this._toMove[i].y += k * icon.size;
+				this._toMove[i].y += k * icon.width;
 			}
 			else{
 				this._toMove[i] = {
-					y : icon.image.y + k * icon.size
+					y : icon.y + k * icon.width
 				};
 			}
 		}
 	},
 
-	changeIndexes : function(fn){
+	changeIndexes : function(){
 		var keys = Object.keys(this._toMove);
 		for(var i = keys.length - 1, l = 0; i >= l; i--){
 			var n = keys[i], 
-				x = this.icons[n].image.x - this.game.global.offsetX,
+				x = this.icons[n].x - this.game.global.offsetX,
 				y = this._toMove[n].y - this.game.global.offsetY,
-				index = (Math.ceil(y / this.icons[n].size) * this.cols) + x / this.icons[n].size,
-				temp = this.icons[index].image;
+				index = Math.ceil((y / this.icons[n].width) * this.cols + x / this.icons[n].width),
+				temp = this.icons[index];
 			
-			this.icons[index].name = this.icons[n].name;
-			this.icons[index].image = this.icons[n].image;
+			this.icons[index] = this.icons[n];
 
-			this.icons[n].name = false;
-			this.icons[n].image = temp;
+			this.icons[n] = temp;
+
+			//решить проблему можно с помощью модификаторов доступа
 		}
 		this._toMove = {};
-		fn();
 	},
 
 	addIcons : function(fn){
 		for(var i = 0; i < this.icons.length; i++){
-			if(!this.icons[i].name){
-				var rnd = Math.floor(Math.random() * 4),
-					x = this.game.global.offsetX + (i % this.cols) * this.icons[i].size,
-					y = this.game.global.offsetY + Math.floor(i / this.cols) * this.icons[i].size;
+			if(!this.icons[i].visible){
+				var rnd = Math.floor(Math.random() * this.game.global.iconNames.length),
+					txt = this.game.global.iconNames[rnd],
+					x = this.game.global.offsetX + (i % this.cols) * this.icons[i].width,
+					y = this.game.global.offsetY + Math.floor(i / this.cols) * this.icons[i].width;
 
-				this.icons[i].name = this.game.global.iconNames[rnd];
-				this.icons[i].image.loadTexture(this.icons[i].name);
-				this.icons[i].image.reset(x, y);
+				this.icons[i].loadTexture(txt);
+				this.icons[i].reset(x, y);
 			}
 		}
 		fn();
@@ -205,7 +237,7 @@ playState.Board.prototype = {
 		}(this));
 
 		for(var i in this._toMove){
-			var t = this.game.add.tween(this.icons[i].image).to({ y : this._toMove[i].y}, 1000);
+			var t = this.game.add.tween(this.icons[i]).to({ y : this._toMove[i].y}, 1000);
 			t.onComplete.add(tweenCallback, this);
 			t.start();
 		}
@@ -220,54 +252,25 @@ playState.Board.prototype = {
 
 		this._combs = [];
 		this.toAdd = [];
+	},
+
+	test : function(){
+		for(var i = 0; i < this.icons.length; i++){
+			if(this.icons[i].next === undefined) console.log('obj');
+		}
 	}
-}
-
-playState.Icon = function(global, rnd, i){
-	this.name = global.iconNames[rnd];
-
-	var col = i % global.cols,
-		row = Math.floor(i / global.cols),
-		nextHor = i + 1,
-		nextVert = i + global.cols;
-
-	if(col === global.cols - 1) nextHor = false; 
-	if(row === global.rows - 1) nextVert = false;
-
-	this.next = {
-		down : nextVert,
-		right : nextHor
-	};
-
-	this.inH = false;
-	this.inV = false;
-	this.processed = false;
-}
-
-playState.Icon.setSize = function(size){
-	this.prototype.size = size; 
-}
-
-playState.Icon.setScale = function(imageSize){
-	this.prototype.scale = (this.prototype.size / imageSize).toFixed(3);
-}
-
-playState.Icon.getRandomName = function(prev){
-	var rnd = Math.floor(Math.random() * 4);
-	if(rnd === prev) return this.getRandomName(rnd);
-	return rnd;
 }
 
 playState.Sequence = function (game) {
 	this.game = game;
 	this.elements = [];
 	for(var i = 0, l = game.global.sequenceLength; i < l; i++){
-		var x = game.global.width / 2 - game.global.size * 3 + i * game.global.size,
-			y = game.global.height - game.global.offsetY / 2 - game.global.size / 2,
-			name = game.global.iconNames[Math.floor(Math.random() * 4)];
+		var x = game.global.width / 2 - game.global.iconSize * 3 + i * game.global.iconSize,
+			y = game.global.height - game.global.offsetY / 2 - game.global.iconSize / 2,
+			name = game.global.iconNames[Math.floor(Math.random() * game.global.iconNames.length)];
 
 		this.elements[i] = game.add.image(x, y, name);
-		this.elements[i].scale.x = this.elements[i].scale.y = (game.global.size / game.global.imageSize).toFixed(3);
+		this.elements[i].scale.x = this.elements[i].scale.y = (game.global.iconSize / game.global.imageSize).toFixed(3);
 	}
 }
 
