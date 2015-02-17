@@ -39,9 +39,11 @@ var playState = {
 			this.board.icons[i] = icon;
 		}
 
+		this.board.createMap();
+
 		this.sequence = new this.Sequence(game);
 
-		this.board.makeTurn();
+		//this.board.makeTurn();
 
 		this.tapped = false;
 	},
@@ -86,11 +88,14 @@ var playState = {
 playState.Board = function(game){
 	this.icons = [];
 	this.cols = game.global.cols;
+	this.rows = game.global.rows;
 
 	this._combs = [];
 	this._toMove = {};
 	this.toAdd = {};
 	this.game = game;
+
+	this.map = {};
 }
 
 playState.Board.prototype = {
@@ -107,8 +112,8 @@ playState.Board.prototype = {
 			self.changeIndexes();
 			self.addIcons(function () {
 				self.defaultValues();
-				self.makeTurn();
-				//count scores here??
+				//self.makeTurn();
+				self.test();
 			});
 		});
 	},
@@ -166,44 +171,30 @@ playState.Board.prototype = {
 				var index = this._combs[i][k],
 					icon = this.icons[index];
 				if ((icon.inV || icon.inH) && !icon.processed){
-					this._shiftUpper(index, 1);
+					this._shiftUpper(index);
 					icon.processed = true;
 				}
 			}
 		}
 	},
 
-	_shiftUpper : function(index, k){
+	_shiftUpper : function(index){
 		for(var i = index - this.cols, l = index % this.cols; i >= l; i = i - this.cols){
 			var icon = this.icons[i];
 			if(!icon.visible) continue;
 			if(i in this._toMove){
-				this._toMove[i].y += k * icon.width;
+				this._toMove[i].y += icon.width;
 			}
 			else{
 				this._toMove[i] = {
-					y : icon.y + k * icon.width
+					y : icon.y + icon.width
 				};
 			}
 		}
 	},
 
 	changeIndexes : function(){
-		var keys = Object.keys(this._toMove);
-		for(var i = keys.length - 1, l = 0; i >= l; i--){
-			var n = keys[i], 
-				x = this.icons[n].x - this.game.global.offsetX,
-				y = this._toMove[n].y - this.game.global.offsetY,
-				index = Math.ceil((y / this.icons[n].width) * this.cols + x / this.icons[n].width),
-				temp = this.icons[index];
-			
-			this.icons[index] = this.icons[n];
-
-			this.icons[n] = temp;
-
-			//решить проблему можно с помощью модификаторов доступа
-		}
-		this._toMove = {};
+		
 	},
 
 	addIcons : function(fn){
@@ -215,7 +206,7 @@ playState.Board.prototype = {
 					y = this.game.global.offsetY + Math.floor(i / this.cols) * this.icons[i].width;
 
 				this.icons[i].loadTexture(txt);
-				this.icons[i].reset(x, y);
+				this.icons[i].reset(x, y); 
 			}
 		}
 		fn();
@@ -254,9 +245,23 @@ playState.Board.prototype = {
 		this.toAdd = [];
 	},
 
-	test : function(){
-		for(var i = 0; i < this.icons.length; i++){
-			if(this.icons[i].next === undefined) console.log('obj');
+	createMap : function () {
+		for(var i = 0, l = this.icons.length; i < l; i++){
+			var row = Math.floor(i / this.cols),
+				col = i % this.cols,
+				down = i + this.cols,
+				right = i + 1;
+
+			if(down > this.rows * this.cols) down = false;
+			else down = this.icons[down];
+
+			if(Math.floor(right / this.cols) > row) right = false;
+			else right = this.icons[right];
+
+			this.map[i] = {
+				right : right,
+				down : down
+			}
 		}
 	}
 }
