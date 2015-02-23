@@ -16,21 +16,16 @@ var playState = {
 				col = i % cols,
 				row = Math.floor(i / cols);
 
-			/*if(i > cols - 1){
+			if(i > cols - 1){
 				if(this.board.icons[i - cols].key === game.global.iconNames[rnd]) rnd = this.getRandomName(rnd);
 			}
 			if(i % cols > 0){
 				if(this.board.icons[i - 1].key === game.global.iconNames[rnd]) rnd = this.getRandomName(rnd);
-			}*/
+			}
 
 			var icon = game.add.sprite(x, y, game.global.iconNames[rnd]);
 			icon.scale.x = icon.scale.y = iconScale;
 			game.physics.arcade.enable(icon);
-
-			icon.next = {
-				down : row === rows - 1 ? false : i + cols,
-				right : col === cols - 1 ? false : i + 1
-			};
 
 			icon.inH = false;
 			icon.inV = false;
@@ -43,7 +38,7 @@ var playState = {
 
 		this.sequence = new this.Sequence(game);
 
-		//this.board.makeTurn();
+		this.board.makeTurn();
 
 		this.tapped = false;
 	},
@@ -51,6 +46,8 @@ var playState = {
 	update : function () {
 		if(game.input.activePointer.isDown){
 			if(game.time.now - this.tapped < game.global.tapDelay) return;
+			this.board.makeTurn();
+
 			var relX = game.input.activePointer.x - game.global.offsetX,
 				relY = game.input.activePointer.y - game.global.offsetY,
 				index = Math.floor(relY / game.global.iconSize) * game.global.cols + Math.floor(relX / game.global.iconSize);
@@ -92,7 +89,6 @@ playState.Board = function(game){
 
 	this._combs = [];
 	this._toMove = {};
-	this.toAdd = {};
 	this.game = game;
 
 	this.map = {};
@@ -110,11 +106,9 @@ playState.Board.prototype = {
 
 		this.moveIcons(function () {
 			self.changeIndexes();
-			self.addIcons(function () {
-				self.defaultValues();
-				//self.makeTurn();
-				self.test();
-			});
+			self.addIcons();
+			self.defaultValues();
+			self.makeTurn();
 		});
 	},
 
@@ -146,16 +140,20 @@ playState.Board.prototype = {
 		current.push(i);
 
 		while(hasComb){
-			var prev = this.icons[current[current.length - 1]],
-				icon = this.icons[prev.next[dir]];
+			var prev = this.icons[i],
+				index = this.map[i][dir],
+				icon = this.icons[index];
+
 			if (icon.key == prev.key){
-				current.push(prev.next[dir]);
-				if(!icon.next[dir]) hasComb = false;
+				current.push(index);
+				if(!this.map[index][dir]) hasComb = false;
 			}
 			else {
 				hasComb = false;
 			}
+			i = index;
 		}
+
 		if(current.length > 2){
 			for(var i = 0, l = current.length; i < l; i++){
 				var index = current[i];
@@ -184,20 +182,33 @@ playState.Board.prototype = {
 			if(!icon.visible) continue;
 			if(i in this._toMove){
 				this._toMove[i].y += icon.width;
+				this._toMove[i].index += this.cols;	
 			}
 			else{
 				this._toMove[i] = {
-					y : icon.y + icon.width
+					y : icon.y + icon.width,
+					index : i + this.cols
 				};
 			}
 		}
 	},
 
 	changeIndexes : function(){
-		
+		var keys = Object.keys(this._toMove);
+		if(keys.length == 0) return;
+
+		for(var i = keys.length - 1; i >= 0; i--){
+			var n = keys[i],
+				temp = this.icons[n],
+				index = this._toMove[n].index;
+
+			this.icons[n] = this.icons[index];
+			this.icons[index]  = temp;
+		}
+		this._toMove = {};
 	},
 
-	addIcons : function(fn){
+	addIcons : function(){
 		for(var i = 0; i < this.icons.length; i++){
 			if(!this.icons[i].visible){
 				var rnd = Math.floor(Math.random() * this.game.global.iconNames.length),
@@ -209,7 +220,6 @@ playState.Board.prototype = {
 				this.icons[i].reset(x, y); 
 			}
 		}
-		fn();
 	},
 
 	moveIcons : function (fn) {
@@ -241,8 +251,7 @@ playState.Board.prototype = {
 			this.icons[i].processed = false;
 		}
 
-		this._combs = [];
-		this.toAdd = [];
+		this._combs = []; 
 	},
 
 	createMap : function () {
@@ -253,10 +262,8 @@ playState.Board.prototype = {
 				right = i + 1;
 
 			if(down > this.rows * this.cols) down = false;
-			else down = this.icons[down];
 
 			if(Math.floor(right / this.cols) > row) right = false;
-			else right = this.icons[right];
 
 			this.map[i] = {
 				right : right,
