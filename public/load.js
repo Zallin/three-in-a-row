@@ -8,6 +8,7 @@ var loadState = {
 		game.load.image('square', 'square.png');
 		game.load.image('pentagon', 'pentagon.png');
 		game.load.image('triangle', 'triangle.png');
+		game.load.image('dot', 'dot.png');
 	},
 
 	create : function(){

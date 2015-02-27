@@ -17,7 +17,10 @@ game.global = {
 	rows : 10,
 	cols : 8,
 	sequenceLength : 6,
-	tapDelay : 500
+	tapDelay : 500,
+	initialCapacity : 100,
+	increment : 10,
+	loaderName : 'dot'
 }
 
 game.global.iconNames = ['circle', 'triangle', 'square', 'pentagon'];
