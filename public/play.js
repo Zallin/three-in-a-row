@@ -75,13 +75,15 @@ playState.initIcons = function (game) {
 			if(icons[i - 1].key === game.global.iconNames[rnd]) rnd = getRandomName(rnd);
 		}
 
-		icons[i] = game.add.sprite(x, y, game.global.iconNames[rnd]);
+		icons[i] = game.add.sprite(x, y, game.global.iconNames[rnd], 3);
 		icons[i].scale.x = icons[i].scale.y = iconScale;
 		game.physics.arcade.enable(icons[i]);
 
 		icons[i].inH = false;
 		icons[i].inV = false;
 		icons[i].processed = false;
+
+		icons[i].animations.add('create', [0, 1, 2, 3], 12);
 	}
 
 	function getRandomName (prev){
@@ -245,7 +247,17 @@ playState.initBoard = function (game, icons) {
 			toMove = {};
 		}
 
-		function addIcons (){
+		function addIcons (func){
+			var callback = {
+				signals : 0,
+				fn : (function () {
+					var invoked = 0;
+					return function(){
+						if(++invoked == this.signals) func();
+					}
+				}())
+			}
+
 			for(var i = 0, l = icons.length; i < l; i++){
 				if(!icons[i].visible){
 					var rnd = Math.floor(Math.random() * game.global.iconNames.length),
@@ -255,6 +267,11 @@ playState.initBoard = function (game, icons) {
 
 					icons[i].loadTexture(txt);
 					icons[i].reset(x, y); 
+
+					var anim = icons[i].animations.getAnimation('create');
+					anim.onComplete.add(callback.fn, callback);
+					callback.signals++;
+					anim.play();
 				}
 			}
 		}
@@ -303,18 +320,19 @@ playState.initBoard = function (game, icons) {
 
 				moveIcons(function () {
 					changeIndexes();
-					addIcons();
-					defaultValues();
+					addIcons(function(){
+						defaultValues();
 
-					self.onTurnFinished({
-						points : points, 
-						combo : combo
+						self.onTurnFinished({
+							points : points, 
+							combo : combo
+						});
+
+						combo = 0;
+						points = 0;
+
+						self.makeTurn(); 
 					});
-
-					combo = 0;
-					points = 0;
-
-					self.makeTurn();
 				});
 
 			},
@@ -330,7 +348,7 @@ playState.initBoard = function (game, icons) {
 			}()),
 
 			insertIcon : function (index, txt) {
-				icons[index].loadTexture(txt);
+				icons[index].loadTexture(txt, 3);
 			}
 		}
 }
@@ -342,7 +360,7 @@ playState.initSequence = function (game) {
 			y = game.global.height - game.global.offsetY / 2 - game.global.iconSize / 2,
 			name = game.global.iconNames[Math.floor(Math.random() * game.global.iconNames.length)];
 
-		elements[i] = game.add.image(x, y, name);
+		elements[i] = game.add.image(x, y, name, 3);
 		elements[i].scale.x = elements[i].scale.y = (game.global.iconSize / game.global.imageSize).toFixed(3);
 	}
 
@@ -350,11 +368,11 @@ playState.initSequence = function (game) {
 		shift : function (){
 			for(var i = 1, l = elements.length; i < l; i++){
 				var txt = elements[i].key;
-				elements[i - 1].loadTexture(txt);
+				elements[i - 1].loadTexture(txt, 3);
 			}
 
 			var name = game.global.iconNames[Math.floor(Math.random() * game.global.iconNames.length)];
-			elements[elements.length - 1].loadTexture(name);
+			elements[elements.length - 1].loadTexture(name, 3);
 		},
 
 		getFirstKey : function () {

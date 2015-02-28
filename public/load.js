@@ -4,10 +4,12 @@ var loadState = {
 
 		game.physics.startSystem(Phaser.Physics.ARCADE);
 
-		game.load.image('circle', 'circle.png');
-		game.load.image('square', 'square.png');
-		game.load.image('pentagon', 'pentagon.png');
-		game.load.image('triangle', 'triangle.png');
+		game.load.spritesheet('circ1', 'circ1.png', 64, 64);
+		game.load.spritesheet('oct1', 'oct1.png', 64, 64);
+		game.load.spritesheet('oct2', 'oct2.png', 64, 64);
+		game.load.spritesheet('oct3', 'oct3.png', 64, 64);
+		game.load.spritesheet('tr1', 'tr1.png', 64, 64);
+		game.load.spritesheet('tr2', 'tr2.png', 64, 64);
 		game.load.image('dot', 'dot.png');
 	},
 

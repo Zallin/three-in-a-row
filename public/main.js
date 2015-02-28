@@ -23,4 +23,4 @@ game.global = {
 	loaderName : 'dot'
 }
 
-game.global.iconNames = ['circle', 'triangle', 'square', 'pentagon'];
+game.global.iconNames = ['oct1', 'oct2', 'oct3', 'tr1', 'tr2', 'circ1'];
