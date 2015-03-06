@@ -20,7 +20,15 @@ game.global = {
 	tapDelay : 500,
 	initialCapacity : 100,
 	increment : 10,
-	loaderName : 'dot'
+	loaderName : 'bar',
+	loaderWidth : 200,
+	loaderHeight : 30,
+	speed : 40,
+	loaderName : 'dot',
+	bonusWidth : 100,
+	bonusHeight : 25
 }
 
 game.global.iconNames = ['oct1', 'oct2', 'oct3', 'tr1', 'tr2', 'circ1'];
+
+game.global.bonusNames = ['reverse', 'even', 'odd', 'x2'];

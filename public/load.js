@@ -11,6 +11,10 @@ var loadState = {
 		game.load.spritesheet('tr1', 'tr1.png', 64, 64);
 		game.load.spritesheet('tr2', 'tr2.png', 64, 64);
 		game.load.image('dot', 'dot.png');
+		game.load.image('x2', 'x2.png');
+		game.load.image('even', 'even.png');
+		game.load.image('odd', 'odd.png');
+		game.load.image('reverse', 'reverse.png');
 	},
 
 	create : function(){

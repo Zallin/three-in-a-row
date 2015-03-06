@@ -11,10 +11,23 @@ var playState = {
 
 		this.bonusLoader = this.initLoader(game);
 
+		this.bonusGen = this.initBonusSet(game);
+
 		var self = this;
 
 		this.board.onTurnFinished(function (res) {
 			self.bonusLoader.add(res.points * res.combo);
+		});
+
+		this.bonusLoader.onLoaderfilled(function (res) {
+			self.bonusGen.add();
+		})
+
+		this.bonusGen.onBonusClicked(function (key){
+			if (key == 'reverse') self.sequence.reverse();
+			else if (key == 'even') self.sequence.changeOverOne(1);
+			else if (key == 'odd') self.sequence.changeOverOne(0);
+			//else if (key = 'x2') double points
 		});
 
 		this.board.makeTurn();
@@ -24,12 +37,12 @@ var playState = {
 
 	update : function () {
 		if(game.input.activePointer.isDown){
-			if(game.time.now - this.tapped < game.global.tapDelay) return;
-			this.board.makeTurn();
-
 			var relX = game.input.activePointer.x - game.global.offsetX,
-				relY = game.input.activePointer.y - game.global.offsetY,
-				index = Math.floor(relY / game.global.iconSize) * game.global.cols + Math.floor(relX / game.global.iconSize);
+				relY = game.input.activePointer.y - game.global.offsetY;
+
+			if(relY < 0 || relX < 0 || game.time.now - this.tapped < game.global.tapDelay) return;
+
+			var index = Math.floor(relY / game.global.iconSize) * game.global.cols + Math.floor(relX / game.global.iconSize);
 
 			this.insertIcon(index);
 			this.tapped = game.time.now;
@@ -57,69 +70,110 @@ var playState = {
 
 playState.initIcons = function (game) {
 	var iconScale = (game.global.iconSize / game.global.imageSize).toFixed(3),
-		rows = game.global.rows, 
 		cols = game.global.cols,
 		icons = [];
 
-	for(var i = 0, q = rows * cols; i < q; i++){
-		var rnd = Math.floor(Math.random() * game.global.iconNames.length),
-			x = Math.floor(game.global.offsetX + game.global.iconSize * (i % cols)),
+	for(var i = 0, q = game.global.rows * cols; i < q; i++){
+		var x = Math.floor(game.global.offsetX + game.global.iconSize * (i % cols)),
 			y = Math.floor(game.global.offsetY + game.global.iconSize * Math.floor(i / cols)),
-			col = i % cols,
-			row = Math.floor(i / cols);
+			left = false, 
+			up = false;
 
-		if(i > cols - 1){
-			if(icons[i - cols].key === game.global.iconNames[rnd]) rnd = getRandomName(rnd);
-		}
 		if(i % cols > 0){
-			if(icons[i - 1].key === game.global.iconNames[rnd]) rnd = getRandomName(rnd);
+			left = icons[i - 1].key;
+		}
+		if(Math.floor(i / cols) > 0){
+			up = icons[i - cols].key;
 		}
 
-		icons[i] = game.add.sprite(x, y, game.global.iconNames[rnd], 3);
-		icons[i].scale.x = icons[i].scale.y = iconScale;
-		game.physics.arcade.enable(icons[i]);
+		var name = getName(left, up);
 
-		icons[i].inH = false;
-		icons[i].inV = false;
-		icons[i].processed = false;
+		icons[i] = game.add.sprite(x, y, name, 3);
+		icons[i].scale.x = icons[i].scale.y = iconScale;
 
 		icons[i].animations.add('create', [0, 1, 2, 3], 12);
+
+		game.physics.arcade.enable(icons[i]);
 	}
 
-	function getRandomName (prev){
-		var rnd = Math.floor(Math.random() * game.global.iconNames.length);
-		if(rnd === prev) return getRandomName(rnd);
-		return rnd;
+	function getName (){
+		var args = Array.prototype.slice.call(arguments);
+
+		return getRand();
+
+		function getRand (){
+			var n = Math.floor(Math.random() * game.global.iconNames.length);
+			if(args.indexOf(game.global.iconNames[n]) == -1) return game.global.iconNames[n];
+			return getRand();
+		}
 	}
 
 	return icons;
 }
 
 playState.initLoader = function () {
-	var sprite = game.add.sprite(game.global.offsetX, game.global.offsetY / 3, game.global.loaderName),
-		maxWidth = game.global.width - game.global.offsetX * 2,
+	var loader = game.add.sprite(game.global.offsetX, game.global.offsetX, game.global.loaderName);	
+
 		pointsMax = game.global.initialCapacity,
-		points = 0,
-		pointSize;
+		points = 99;
 
 		setFraction();
 
 		function setFraction(){
-			pointSize = (maxWidth / pointsMax) / sprite.width;
+			pointSize = (game.global.width - game.global.offsetX * 2) / pointsMax;
 		}
 
 		return {
 			add : function (ps) {
-				sprite.scale.x += pointSize * ps;
+				loader.width += pointSize * ps;
 				points += ps;
 				if(points > pointsMax){
-					sprite.scale.x = 1;
+					this.onLoaderfilled();
+					loader.scale.x = 1;
 					pointsMax += 10;
 					points = 0;
 					setFraction();
 				}
-			}
+			},
+
+			onLoaderfilled : (function () {
+				var callback;
+				return function (arg){
+					if(!callback) callback = arg;
+					else return callback();
+				}
+			}())
 		}
+}
+
+playState.initBonusSet = function (game) {
+	var bonus1, bonus2;
+
+	function getBonusName(){
+		return game.global.bonusNames[Math.floor(Math.random() * game.global.bonusNames.length)];
+	}
+
+	return {
+		onBonusClicked : (function () {
+			var callback;
+			return function (arg) {
+				if(!callback) callback = arg;
+				else {
+					bonus1.visible = bonus2.visible = false;
+					return callback(this.key);
+				} 
+
+			}
+		}()),
+
+		add : function () {
+			bonus1 = game.add.button(game.global.width / 2 - game.global.bonusWidth * 1.5, game.global.offsetX * 2, getBonusName()),
+			bonus2 = game.add.button(game.global.width / 2 + game.global.bonusWidth / 2, game.global.offsetX * 2, getBonusName());
+
+			bonus1.onInputDown.add(this.onBonusClicked, bonus1);
+			bonus2.onInputDown.add(this.onBonusClicked, bonus2);
+		}
+	}
 }
 
 
@@ -139,7 +193,7 @@ playState.initBoard = function (game, icons) {
 				down = i + cols,
 				right = i + 1;
 
-				if(down > rows * cols) down = false;
+				if(down >= rows * cols) down = false;
 
 				if(Math.floor(right / cols) > row) right = false;
 
@@ -150,29 +204,27 @@ playState.initBoard = function (game, icons) {
 			}
 		}());
 
-		function findThreesomes (){
+		function killThreesomes (fn){
+
 			for(var i = 0, l = icons.length; i < l; i++){
 				if (l - i > cols * 2){
-					checkComb(i, 'inV', 'down');
+					checkComb(i, 'down');
 				}
 				if (i % cols < cols - 2){
-					checkComb(i, 'inH', 'right');
+					checkComb(i, 'right');
 				}
 			}
 
-			if(combs.length < 1) return;
+			if(combs.length === 0) return;
 
 			for(var i = 0, l = combs.length; i < l; i++){
-				for(var k = 0, j = combs[i].length; k < j; k++){
-					var index = combs[i][k];
-					icons[index].visible = false;
-					points += k + 1;
-				}
+				var index = combs[i];
+				icons[index].visible = false;
 			}
+			fn();
 		}
 
-		function checkComb (i, prop, dir){
-			if (icons[i][prop]) return false;
+		function checkComb (i, dir){
 			var current = [],
 				hasComb = true;
 
@@ -196,22 +248,14 @@ playState.initBoard = function (game, icons) {
 			if(current.length > 2){
 				for(var i = 0, l = current.length; i < l; i++){
 					var index = current[i];
-					icons[index][prop] = true;
+					if(combs.indexOf(index) === -1) combs.push(index);
 				}
-				combs.push(current);
 			}
 		}
 
 		function computeMovements (){
 			for(var i = 0, l = combs.length; i < l; i++){
-				for(var k = 0, j = combs[i].length; k < j; k++){
-					var index = combs[i][k],
-					icon = icons[index];
-					if ((icon.inV || icon.inH) && !icon.processed){
-						shiftUpper(index);
-						icon.processed = true;
-					}
-				}
+				shiftUpper(combs[i]);
 			}
 		}
 
@@ -247,30 +291,30 @@ playState.initBoard = function (game, icons) {
 			toMove = {};
 		}
 
-		function addIcons (func){
-			var callback = {
-				signals : 0,
-				fn : (function () {
-					var invoked = 0;
-					return function(){
-						if(++invoked == this.signals) func();
-					}
-				}())
-			}
+		function addIcons (fn){
+			var addCallback = callback(fn, combs.length);
 
 			for(var i = 0, l = icons.length; i < l; i++){
 				if(!icons[i].visible){
-					var rnd = Math.floor(Math.random() * game.global.iconNames.length),
-					txt = game.global.iconNames[rnd],
-					x = game.global.offsetX + (i % cols) * icons[i].width,
-					y = game.global.offsetY + Math.floor(i / cols) * icons[i].width;
+					var x = game.global.offsetX + (i % cols) * icons[i].width,
+						y = game.global.offsetY + Math.floor(i / cols) * icons[i].width,
+						left = false, 
+						down = false;
+
+					if(i % cols > 0){
+						left = icons[i - 1].key;
+					}
+					if(Math.floor(i / cols) < 7){
+						down = icons[i + cols].key;
+					}
+
+					var txt = getName(left, down);
 
 					icons[i].loadTexture(txt);
 					icons[i].reset(x, y); 
 
 					var anim = icons[i].animations.getAnimation('create');
-					anim.onComplete.add(callback.fn, callback);
-					callback.signals++;
+					anim.onComplete.add(addCallback.fn, addCallback);
 					anim.play();
 				}
 			}
@@ -279,71 +323,76 @@ playState.initBoard = function (game, icons) {
 		function moveIcons (fn){
 			if(Object.keys(toMove).length == 0) return fn();
 
-			var tweenCallback = (function () {
-				var completed = 0,
-				l = Object.keys(toMove).length;
-
-				return function () {
-					completed++;
-					if(completed == l){
-						fn();
-					}
-				}
-			}());
+			var tweenCallback = callback(fn, Object.keys(toMove).length);
 
 			for(var i in toMove){
-				var t = game.add.tween(icons[i]).to({ y : toMove[i].y}, 1000);
-				t.onComplete.add(tweenCallback);
+				var time = (toMove[i].y - icons[i].y) / game.global.speed,
+					t =  game.add.tween(icons[i]).to({ y : toMove[i].y}, time * 300);
+
+				t.onComplete.add(tweenCallback.fn, tweenCallback);
 				t.start();
 			}
 		}
 
-		function defaultValues (){
-			for(var i = 0, l = icons.length; i < l; i++){
-				icons[i].inV = false;
-				icons[i].inH = false;
-				icons[i].processed = false;
+		function callback (fn, max) {
+			return {
+				signals : max, 
+				fn : (function () {
+					var invoked = 0;
+					return function () {
+						if(++invoked == this.signals) return fn();
+					}
+				}())
 			}
+		}
 
-			combs = []; 
+		function getName (){
+			var args = Array.prototype.slice.call(arguments);
+
+			return getRand();
+
+			function getRand (){
+				var n = Math.floor(Math.random() * game.global.iconNames.length);
+				if(args.indexOf(game.global.iconNames[n]) == -1) return game.global.iconNames[n];
+				return getRand();
+			}
 		}
 
 		return {
 			makeTurn : function () {
-				findThreesomes();
-				if (combs.length === 0) return;
-
-				combo += 1;
-				computeMovements();
-
 				var self = this;
 
-				moveIcons(function () {
-					changeIndexes();
-					addIcons(function(){
-						defaultValues();
+				killThreesomes(function () {
+					points += combs.length;
+					combo += 1;
+					computeMovements();
 
-						self.onTurnFinished({
-							points : points, 
-							combo : combo
+					moveIcons(function () {
+						changeIndexes();
+						addIcons(function(){
+
+							self.onTurnFinished({
+								points : points, 
+								combo : combo
+							});
+
+							combo = 0;
+							points = 0;
+							combs = [];
+
+							self.makeTurn(); 
 						});
-
-						combo = 0;
-						points = 0;
-
-						self.makeTurn(); 
 					});
-				});
 
+				});
 			},
 
 			onTurnFinished : (function(){
 				var callback;
 				return function(arg){
 					if(!callback) callback = arg;
-					else{
-						callback(arg);
-					}
+					else callback(arg);
+					
 				}
 			}()),
 
@@ -377,6 +426,23 @@ playState.initSequence = function (game) {
 
 		getFirstKey : function () {
 			return elements[0].key;
+		},
+
+		changeOverOne : function (s) {
+			for(var i = s, l = elements.length; i < l; i += 2){
+				var n = Math.floor(Math.random() * 4);
+				elements[i].loadTexture(game.global.iconNames[n], 3);
+			}		
+		},
+
+		reverse : function () {
+			var keys = [];
+			for(var i = elements.length - 1, l = 0; i >= l; i--){
+				keys.push(elements[i].key);
+			}
+			for(var i = 0, l = elements.length; i < l; i++){
+				elements[i].loadTexture(keys[i], 3);
+			}
 		}
 	}
 }
